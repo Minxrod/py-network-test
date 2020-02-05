@@ -1,8 +1,10 @@
 import tkinter as tk
+import network2 as net
 
 class GUI:
 
     def __init__(self, master):
+        # set up GUI info and widgets
         self.frame = tk.Frame(master)
 
         self.canvas = tk.Canvas(self.frame, width=256, height=256)
@@ -11,49 +13,70 @@ class GUI:
         self.instruct_str.set("Enter 'help' for command list")
         self.instruct = tk.Label(self.frame, textvariable=self.instruct_str)
 
+        # data processing/controls object
+        self.control = Control(self.canvas, self.instruct_str)
+
+        # add rest of GUI info (requires control for callbacks)
         self.entry = tk.Entry(self.frame)
         self.entry.insert(0, "help")
-        self.entry.bind("<Return>", self.run)
-        self.submit = tk.Button(self.frame, text="Submit", command=self.run)
+        self.entry.bind("<Return>", self.submit_command)
+        self.submit = tk.Button(self.frame, text="Submit", command=self.submit_command)
+        self.request = tk.Button(self.frame, text="Update", command=self.request_update)
 
         self.canvas.pack(side=tk.TOP)
         self.instruct.pack(side=tk.TOP)
+        self.request.pack(side=tk.RIGHT)
         self.submit.pack(side=tk.RIGHT)
         self.entry.pack(side=tk.LEFT)
 
-        self.ctr = Control(self.canvas)
-
         self.frame.pack()
 
-    def run(self, event=None):
-        cmd = self.entry.get()
+    def submit_command(self, event=None):
+        self.control.submit_command(self.entry.get())
 
-        res = self.ctr.run(cmd)
-
-        if res is not None:
-            self.instruct_str.set(res)
-        else:
-            self.instruct_str.set("")
+    def request_update(self, event=None):
+        self.control.request_update()
 
 class Control:
+    def __init__(self, canvas, label):
+        # save ref to canvas for drawing
+        self.canvas = canvas
+        self.label = label
 
-    def __init__(self, canvas):
+        # create necessary data objects
         self.objects = []
         self.commands = []
-        self.canvas = canvas
-
         self.prev_color = "black"
 
-    def run(self, command):
-        args = command.split()
-        command = args[0]
-        args.remove(command)
+        # create networking objects
+        self.client = net.Client()
+        self.client.client_run()
 
-        self.commands.append((command, args))
-        print(self.commands)
+    def submit_command(self, cmd):
 
+        # split into command and arguments
+        if cmd is not None:
+            args = cmd.split()
+            command = args.pop(0)
+        else:
+            args = []
+            command = ""
+
+        # run command
+        res = self.command(command, args)
+
+        # submit new info to server
+        self.submit("submit", (command, args))
+
+        # check result for updates
+        if res is not None:
+            self.label.set(res)
+        else:
+            self.label.set("")
+
+    def command(self, command, args):
         if command == "help":
-            return Control._help(args)
+            return self._help(args)
         elif command == "line":
             return self.line(args)
         elif command == "color":
@@ -64,6 +87,27 @@ class Control:
             return self.circle(args)
         elif command == "oval":
             return self.oval(args)
+        else:
+            return None
+
+    def submit(self, server_command, data):
+        self.client.set_info(server_command, data)
+
+        return self.client.get_data()
+
+    def request_update(self):
+        # request/get info from server
+        self.submit("request_all", None)
+
+        while self.client.get_data() is None:
+            pass
+
+        request = self.client.get_data()
+        print(request)
+        # reinitialize info and draw all objects
+        for operation in request:
+            self.command(operation[0], operation[1])
+        pass
 
     @staticmethod
     def _help(args):
@@ -98,7 +142,7 @@ class Control:
         elif len(args) == 4:
             color = self.prev_color
         else:
-            return Control._help(["line"])
+            return self._help(["line"])
 
         self.objects.append(self.canvas.create_line(args[0:4], fill=color))
 
@@ -106,7 +150,7 @@ class Control:
         if len(args) == 1:
             self.prev_color = args[0]
         else:
-            return Control._help("color")
+            return self._help("color")
 
     def rect(self, args):
         if len(args) == 5:
@@ -116,7 +160,7 @@ class Control:
         elif len(args) == 4:
             color = self.prev_color
         else:
-            return Control._help(["rect"])
+            return self._help(["rect"])
 
         self.objects.append(self.canvas.create_rectangle(args[0:4], fill=color))
 
@@ -128,7 +172,7 @@ class Control:
         elif len(args) == 3:
             color = self.prev_color
         else:
-            return Control._help(["circle"])
+            return self._help(["circle"])
 
         x = int(args[0])
         y = int(args[1])
@@ -144,7 +188,7 @@ class Control:
         elif len(args) == 4:
             color = self.prev_color
         else:
-            return Control._help(["oval"])
+            return self._help(["oval"])
 
         x = int(args[0])
         y = int(args[1])

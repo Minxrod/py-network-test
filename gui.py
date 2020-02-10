@@ -1,10 +1,13 @@
 import tkinter as tk
 import network2 as net
 
+# https://stackoverflow.com/questions/111155/hw-do-i-handle-the-window-close-event-in-tkinter
+
 class GUI:
 
     def __init__(self, master):
         # set up GUI info and widgets
+        self.master = master
         self.frame = tk.Frame(master)
 
         self.canvas = tk.Canvas(self.frame, width=256, height=256)
@@ -37,11 +40,16 @@ class GUI:
     def request_update(self, event=None):
         self.control.request_update()
 
+    def close_gui(self):
+        self.master.destroy()
+        self.control.client.set_info("end", "")
+
 class Control:
     def __init__(self, canvas, label):
         # save ref to canvas for drawing
         self.canvas = canvas
         self.label = label
+        self.user = "PLAYER"
 
         # create necessary data objects
         self.objects = []
@@ -49,7 +57,7 @@ class Control:
         self.prev_color = "black"
 
         # create networking objects
-        self.client = net.Client()
+        self.client = net.Client(self)
         self.client.client_run()
 
     def submit_command(self, cmd):
@@ -81,12 +89,14 @@ class Control:
             return self.line(args)
         elif command == "color":
             return self.color(args)
-        elif command == "rect":
+        elif command == "rect" or command == "rectangle":
             return self.rect(args)
         elif command == "circle":
             return self.circle(args)
         elif command == "oval":
             return self.oval(args)
+        elif command == "msg" or command == "message":
+            return self.message(args)
         else:
             return None
 
@@ -197,9 +207,19 @@ class Control:
 
         self.objects.append(self.canvas.create_oval(x - rx, y - ry, x + rx, y + ry, fill=color))
 
+    def message(self, args):
+        if len(args) < 1:
+            return self._help(["msg"])
+
+        msg = ""
+        for arg in args:
+            msg += arg + " "
+        self.label.set(self.user + ": " + msg)
+
 
 root = tk.Tk()
-
 gui = GUI(root)
+
+root.protocol("WM_DELETE_WINDOW", gui.close_gui)
 
 root.mainloop()

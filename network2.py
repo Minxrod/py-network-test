@@ -19,7 +19,8 @@ ENCODE = 'ascii'
 
 class Client:
 
-    def __init__(self):
+    def __init__(self, control):
+        self.control = control
         self.reader = None
         self.writer = None
 
@@ -41,7 +42,8 @@ class Client:
         await self.writer.drain()
 
     async def recv(self):
-        data = await self.reader.read(1024)
+        data = await self.reader.read(2048)
+        # if self.reader.
         return convert_to_list(data)
 
     async def main(self):
@@ -53,7 +55,7 @@ class Client:
 
         while True:
             if not len(self.send_queue):
-                await asyncio.sleep(1)
+                await asyncio.sleep(0.1)
 
             with self._lock:
                 if len(self.send_queue):
@@ -70,11 +72,15 @@ class Client:
 
                 if command_info[0] == "request_all":
                     self.recv_data = data
-                if command_info[0] == "end":
+                elif command_info[0] == "end":
                     break
+                else:
+                    for op in data:
+                        self.control.command(op[0], op[1])
 
         self.writer.close()
         await self.writer.wait_closed()
+        print("Disconnected from server.")
 
     def get_data(self):
         with self._lock:

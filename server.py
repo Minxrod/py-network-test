@@ -1,7 +1,8 @@
 import asyncio
 import json
+import socket  # to get host name
 
-HOST = "127.0.0.1"
+HOST = socket.gethostname()
 PORT = 55555
 ADDRESS = (HOST, PORT)
 ENCODE = 'ascii'
@@ -41,7 +42,6 @@ async def dummy(msg, writer):
 
     :param msg: string
     :param writer: asyncio.StreamWriter
-    :return:
     """
     writer.write(json.dumps(msg).encode(ENCODE))
     await writer.drain()
@@ -63,6 +63,7 @@ def accept_submit(data):
 async def connect():
     server = await asyncio.start_server(client_handle, HOST, PORT)
 
+    print("Serving on: " + str(HOST) + " at " + socket.gethostbyname(HOST) + ", " + str(PORT))
     async with server:
         await server.serve_forever()
 

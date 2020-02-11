@@ -3,6 +3,10 @@ import network2 as net
 
 # https://stackoverflow.com/questions/111155/hw-do-i-handle-the-window-close-event-in-tkinter
 
+host = str(input("Enter address: "))
+port = 55555
+name = str(input("Enter display name: "))
+
 class GUI:
 
     def __init__(self, master):
@@ -49,7 +53,7 @@ class Control:
         # save ref to canvas for drawing
         self.canvas = canvas
         self.label = label
-        self.user = "PLAYER"
+        self.user = name
 
         # create necessary data objects
         self.objects = []
@@ -57,7 +61,7 @@ class Control:
         self.prev_color = "black"
 
         # create networking objects
-        self.client = net.Client(self)
+        self.client = net.Client(self, host, port)
         self.client.client_run()
 
     def submit_command(self, cmd):
@@ -93,9 +97,10 @@ class Control:
             return self.rect(args)
         elif command == "circle":
             return self.circle(args)
-        elif command == "oval":
+        elif command == "oval" or command == "ellipse":
             return self.oval(args)
         elif command == "msg" or command == "message":
+            args.insert(0, self.user + ": ")
             return self.message(args)
         else:
             return None
@@ -124,18 +129,20 @@ class Control:
         if len(args) >= 1:
             index = args[0]
         else:
-            return "Commands: line, rect, circle, oval, color, help"
+            return "Commands: line, rect, circle, oval, color, help, msg"
 
         if index == "line":
             return "line x1 y1 x2 y2 [color]"
-        elif index == "rect":
+        elif index == "rect" or index == "rectangle":
             return "rect x1 y1 x2 y2 [color]"
         elif index == "circle":
             return "circle x y r [color]"
         elif index == "color":
             return "color (name, #RGB, or #RRGGBB)"
-        elif index == "oval":
+        elif index == "oval" or index == "ellipse":
             return "oval x y rx ry [color]"
+        elif index == "msg" or index == "message":
+            return "msg message"
         elif index == "help":
             if len(args) > 1 and args[1] == "help":
                 return "Okay, don't get too crazy now."
@@ -213,8 +220,10 @@ class Control:
 
         msg = ""
         for arg in args:
+            if arg is args[0]:
+                continue  # skip first argument
             msg += arg + " "
-        self.label.set(self.user + ": " + msg)
+        self.label.set(msg)
 
 
 root = tk.Tk()

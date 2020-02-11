@@ -11,15 +11,14 @@ from collections import deque
 # https://realpython.com/intro-to-python-threading
 # look for <dchp?>/searching for host server(s)
 
-
-HOST = "127.0.0.1"
-PORT = 55555
-ADDRESS = (HOST, PORT)
 ENCODE = 'ascii'
 
 class Client:
 
-    def __init__(self, control):
+    def __init__(self, control, host, port):
+        self.host = host
+        self.port = port
+
         self.control = control
         self.reader = None
         self.writer = None
@@ -42,20 +41,20 @@ class Client:
         await self.writer.drain()
 
     async def recv(self):
-        data = await self.reader.read(2048)
+        data = await self.reader.read(8192)
         # if self.reader.
         return convert_to_list(data)
 
     async def main(self):
         try:
-            self.reader, self.writer = await asyncio.open_connection(HOST, PORT)
+            self.reader, self.writer = await asyncio.open_connection(self.host, self.port)
         except ConnectionRefusedError:
             print("Error connecting...")
             exit(1)
 
         while True:
             if not len(self.send_queue):
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(0)
 
             with self._lock:
                 if len(self.send_queue):

@@ -24,7 +24,7 @@ async def client_handle(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
             client_location = len(commands)
         elif command[0] == "submit":
             accept_submit(command[1])
-            await dummy(command, writer)
+            await dummy(null_command, writer)
             client_location = len(commands)
         elif command[0] == "end":
             await dummy(command, writer)

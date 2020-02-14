@@ -1,3 +1,4 @@
+import threading
 import tkinter as tk
 import network2 as net
 
@@ -64,6 +65,8 @@ class Control:
         self.client = net.Client(self, host, port)
         self.client.client_run()
 
+        self._lock = threading.Lock()
+
     def submit_command(self, cmd):
 
         # split into command and arguments
@@ -80,30 +83,38 @@ class Control:
         # submit new info to server
         self.submit("submit", (command, args))
 
-        # check result for updates
-        if res is not None:
-            self.label.set(res)
-        else:
-            self.label.set("")
-
     def command(self, command, args):
-        if command == "help":
-            return self._help(args)
-        elif command == "line":
-            return self.line(args)
-        elif command == "color":
-            return self.color(args)
-        elif command == "rect" or command == "rectangle":
-            return self.rect(args)
-        elif command == "circle":
-            return self.circle(args)
-        elif command == "oval" or command == "ellipse":
-            return self.oval(args)
-        elif command == "msg" or command == "message":
-            args.insert(0, self.user + ": ")
-            return self.message(args)
-        else:
+        if command == "" or command is None:
             return None
+
+        result = None
+        print("Waiting for command lock:" + command)
+        with self._lock:
+            print("Entered command lock" + command)
+            if command == "help":
+                result = self._help(args)
+            elif command == "line":
+                result = self.line(args)
+            elif command == "color":
+                result = self.color(args)
+            elif command == "rect" or command == "rectangle":
+                result = self.rect(args)
+            elif command == "circle":
+                result = self.circle(args)
+            elif command == "oval" or command == "ellipse":
+                result = self.oval(args)
+            elif command == "msg" or command == "message":
+                args.insert(0, self.user + ": ")
+                result = self.message(args)
+
+            # check result for updates
+            if result is not None:
+                self.label.set(result)
+            else:
+                self.label.set("")
+
+        print("Exited command lock" + command)
+        return result
 
     def submit(self, server_command, data):
         self.client.set_info(server_command, data)
@@ -122,7 +133,6 @@ class Control:
         # reinitialize info and draw all objects
         for operation in request:
             self.command(operation[0], operation[1])
-        pass
 
     @staticmethod
     def _help(args):
@@ -215,15 +225,18 @@ class Control:
         self.objects.append(self.canvas.create_oval(x - rx, y - ry, x + rx, y + ry, fill=color))
 
     def message(self, args):
+        print("entered msg")
         if len(args) < 1:
             return self._help(["msg"])
 
+        print("calc msg from args")
         msg = ""
         for arg in args:
             if arg is args[0]:
                 continue  # skip first argument
             msg += arg + " "
-        self.label.set(msg)
+
+        return msg
 
 
 root = tk.Tk()

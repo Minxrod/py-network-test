@@ -9,7 +9,6 @@ from collections import deque
 # https://edux.pjwstk.edu.pl/mat/268/lec/lect8/lecture8.html
 # https://docs.python.org/3.8/library/json.html
 # https://realpython.com/intro-to-python-threading
-# look for <dchp?>/searching for host server(s)
 
 ENCODE = 'ascii'
 
@@ -29,10 +28,11 @@ class Client:
         self.send_queue = deque([])
         # self.send_command = ""  # instruction for server to use
         # self.send_info = ""  # data (may not be required)
-        self._lock = threading.Lock()
+        self._send_lock = threading.Lock()
+        self._recv_lock = threading.Lock()
 
     def set_info(self, command=None, info=None):
-        with self._lock:
+        with self._send_lock:
             self.send_queue.append((command, info))
             self.flag = "update"
 
@@ -53,22 +53,19 @@ class Client:
             exit(1)
 
         while True:
-            if not len(self.send_queue):
-                await asyncio.sleep(0)
-
-            with self._lock:
-                if len(self.send_queue):
-                    command_info = self.send_queue.popleft()
-                else:
+            with self._send_lock:
+                if not len(self.send_queue):
+                    await asyncio.sleep(0)
                     command_info = ("", "")
+                else:
+                    command_info = self.send_queue.popleft()
 
-                # send_command = command_info[0]
-                # send_info = command_info[1]
-                await self.send(command_info)
+            await self.send(command_info)
 
-                data = await self.recv()
-                print(data)
+            data = await self.recv()
+            print(data)
 
+            with self._recv_lock:
                 if command_info[0] == "request_all":
                     self.recv_data = data
                 elif command_info[0] == "end":
@@ -82,7 +79,7 @@ class Client:
         print("Disconnected from server.")
 
     def get_data(self):
-        with self._lock:
+        with self._recv_lock:
             return self.recv_data
 
     def client_run(self):

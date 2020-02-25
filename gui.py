@@ -1,12 +1,19 @@
 import threading
 import tkinter as tk
+
+from collections import deque
 import network2 as net
+import check_command as checker
 
 # https://stackoverflow.com/questions/111155/hw-do-i-handle-the-window-close-event-in-tkinter
+# https://stackoverflow.com/questions/2400262/how-to-create-a-timer-using-tkinter
 
 host = str(input("Enter address: "))
 port = 55555
 name = str(input("Enter display name: "))
+
+cc = checker.CommandChecker("command_info.txt")
+
 
 class GUI:
 
@@ -39,6 +46,8 @@ class GUI:
 
         self.frame.pack()
 
+        self.master.after(100, self.micro_update)
+
     def submit_command(self, event=None):
         self.control.submit_command(self.entry.get())
 
@@ -46,8 +55,14 @@ class GUI:
         self.control.request_update()
 
     def close_gui(self):
-        self.master.destroy()
         self.control.client.set_info("end", "")
+        self.master.destroy()
+
+    def micro_update(self):
+        self.control.update_once()
+
+        self.master.after(100, self.micro_update)
+
 
 class Control:
     def __init__(self, canvas, label):
@@ -65,34 +80,51 @@ class Control:
         self.client = net.Client(self, host, port)
         self.client.client_run()
 
+        # create command queue to store data from network and local
+        self.command_queue = deque([])
         self._lock = threading.Lock()
 
-    def submit_command(self, cmd):
+    def add_queue(self, command):
+        with self._lock:
+            self.command_queue.append(command)
 
-        # split into command and arguments
-        if cmd is not None:
-            args = cmd.split()
-            command = args.pop(0)
-        else:
-            args = []
-            command = ""
+    def update_once(self):
+        with self._lock:
+            while len(self.command_queue) > 0:
+                if not len(self.command_queue):
+                    command = None
+                else:
+                    command = self.command_queue.popleft()
+                self.run_command(command)
 
-        # run command
-        res = self.command(command, args)
-
-        # submit new info to server
-        self.submit("submit", (command, args))
-
-    def command(self, command, args):
-        if command == "" or command is None:
+    def run_command(self, cmd):
+        # cmd should be a (command, args) tuple or list
+        if cmd is None:
             return None
 
+        res = self.command(cmd[0], cmd[1])
+        print(res)
+
+    def submit_command(self, cmd):
+        args = cmd.split()
+        command = args.pop(0)
+        operation = (command, args)
+
+        self.add_queue(operation)
+        self.client.set_info("submit", operation)
+
+    def command(self, command, args):
         result = None
-        print("Waiting for command lock:" + command)
-        with self._lock:
-            print("Entered command lock" + command)
+
+        check = cc.check_args(command, args)
+        if check is not None:
+            result = check
+        else:
             if command == "help":
-                result = self._help(args)
+                if len(args) > 0:
+                    result = cc.get_help(args[0])
+                else:
+                    result = cc.get_help(None)
             elif command == "line":
                 result = self.line(args)
             elif command == "color":
@@ -103,18 +135,21 @@ class Control:
                 result = self.circle(args)
             elif command == "oval" or command == "ellipse":
                 result = self.oval(args)
-            elif command == "msg" or command == "message":
+            if command == "msg" or command == "message":
                 args.insert(0, self.user + ": ")
                 result = self.message(args)
 
-            # check result for updates
-            if result is not None:
-                self.label.set(result)
-            else:
+        # check result for updates
+        if result is not None:
+            self.label.set(result)
+        else:
+            if command != "" and command is not None:
                 self.label.set("")
 
-        print("Exited command lock" + command)
-        return result
+        if command == "msg" or command == "message":
+            return None  # message is OK -> return none
+        else:
+            return result  # return any error messages generated
 
     def submit(self, server_command, data):
         self.client.set_info(server_command, data)
@@ -134,33 +169,6 @@ class Control:
         for operation in request:
             self.command(operation[0], operation[1])
 
-    @staticmethod
-    def _help(args):
-        if len(args) >= 1:
-            index = args[0]
-        else:
-            return "Commands: line, rect, circle, oval, color, help, msg"
-
-        if index == "line":
-            return "line x1 y1 x2 y2 [color]"
-        elif index == "rect" or index == "rectangle":
-            return "rect x1 y1 x2 y2 [color]"
-        elif index == "circle":
-            return "circle x y r [color]"
-        elif index == "color":
-            return "color (name, #RGB, or #RRGGBB)"
-        elif index == "oval" or index == "ellipse":
-            return "oval x y rx ry [color]"
-        elif index == "msg" or index == "message":
-            return "msg message"
-        elif index == "help":
-            if len(args) > 1 and args[1] == "help":
-                return "Okay, don't get too crazy now."
-            else:
-                return "Very funny."
-        elif index == "me":
-            return "Sorry, I got nothing."
-
     def line(self, args):
         if len(args) == 5:
             color = args[4]
@@ -169,7 +177,7 @@ class Control:
         elif len(args) == 4:
             color = self.prev_color
         else:
-            return self._help(["line"])
+            return cc.get_help("line")
 
         self.objects.append(self.canvas.create_line(args[0:4], fill=color))
 
@@ -177,7 +185,7 @@ class Control:
         if len(args) == 1:
             self.prev_color = args[0]
         else:
-            return self._help("color")
+            return cc.get_help("color")
 
     def rect(self, args):
         if len(args) == 5:
@@ -187,7 +195,7 @@ class Control:
         elif len(args) == 4:
             color = self.prev_color
         else:
-            return self._help(["rect"])
+            return cc.get_help("rect")
 
         self.objects.append(self.canvas.create_rectangle(args[0:4], fill=color))
 
@@ -199,13 +207,13 @@ class Control:
         elif len(args) == 3:
             color = self.prev_color
         else:
-            return self._help(["circle"])
+            return cc.get_help("circle")
 
         x = int(args[0])
         y = int(args[1])
         r = int(args[2])
 
-        self.objects.append(self.canvas.create_oval(x-r, y-r, x+r, y+r, fill=color))
+        self.objects.append(self.canvas.create_oval(x - r, y - r, x + r, y + r, fill=color))
 
     def oval(self, args):
         if len(args) == 5:
@@ -215,7 +223,7 @@ class Control:
         elif len(args) == 4:
             color = self.prev_color
         else:
-            return self._help(["oval"])
+            return cc.get_help("oval")
 
         x = int(args[0])
         y = int(args[1])
@@ -227,7 +235,7 @@ class Control:
     def message(self, args):
         print("entered msg")
         if len(args) < 1:
-            return self._help(["msg"])
+            return cc.get_help("msg")
 
         print("calc msg from args")
         msg = ""

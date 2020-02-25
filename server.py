@@ -1,6 +1,7 @@
 import asyncio
 import json
 import socket  # to get host name
+import check_command as checker
 
 HOST = socket.gethostname()
 PORT = 55555
@@ -8,7 +9,8 @@ ADDRESS = (HOST, PORT)
 ENCODE = 'ascii'
 
 commands = []
-null_command = [("", [""])]
+null_command = None
+cc = checker.CommandChecker("command_info.txt")
 
 async def client_handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
     client_location = 0
@@ -19,15 +21,21 @@ async def client_handle(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
         command = json.loads(server_command,encoding=ENCODE)
         print(command)
 
-        if command[0] == "request_all":
+        if command is None:
+            await request_some(writer, client_location)
+            client_location = len(commands)
+        elif command[0] == "request_all":
             await request_all(writer)
             client_location = len(commands)
         elif command[0] == "submit":
+            await request_some(writer, client_location)
             accept_submit(command[1])
-            await dummy(null_command, writer)
+            # submit after requesting
+            # ensure up-to-date client
+            # without repeating the submitted command
             client_location = len(commands)
         elif command[0] == "end":
-            await dummy(command, writer)
+            await dummy(None, writer)
             break
         else:
             await request_some(writer, client_location)
@@ -58,7 +66,12 @@ async def request_some(writer, location):
         await dummy(null_command, writer)
 
 def accept_submit(data):
-    commands.append(data)
+    result = cc.check_args(data[0], data[1])
+    print(result)
+
+    # result is None = no errors, OK to add
+    if result is None:
+        commands.append(data)
 
 async def connect():
     server = await asyncio.start_server(client_handle, HOST, PORT)

@@ -11,6 +11,7 @@ from collections import deque
 # https://realpython.com/intro-to-python-threading
 
 ENCODE = 'ascii'
+null_command = None
 
 class Client:
 
@@ -24,7 +25,6 @@ class Client:
 
         self.recv_data = None
 
-        self.flag = None
         self.send_queue = deque([])
         # self.send_command = ""  # instruction for server to use
         # self.send_info = ""  # data (may not be required)
@@ -34,7 +34,10 @@ class Client:
     def set_info(self, command=None, info=None):
         with self._send_lock:
             self.send_queue.append((command, info))
-            self.flag = "update"
+
+    def set_command(self, command=None):
+        with self._send_lock:
+            self.send_queue.append(command)
 
     async def send(self, item):
         self.writer.write(convert_to_str(item))
@@ -55,24 +58,20 @@ class Client:
         while True:
             with self._send_lock:
                 if not len(self.send_queue):
-                    await asyncio.sleep(0)
-                    command_info = ("", "")
+                    await asyncio.sleep(0.1)
+                    command_info = None
                 else:
                     command_info = self.send_queue.popleft()
 
             await self.send(command_info)
 
             data = await self.recv()
-            print(data)
+            print("Recv: " + str(data))
 
-            with self._recv_lock:
-                if command_info[0] == "request_all":
-                    self.recv_data = data
-                elif command_info[0] == "end":
-                    break
-                else:
-                    for op in data:
-                        self.control.command(op[0], op[1])
+            if data is not None:
+                for command in data:
+                    print("Cmd: " + str(command))
+                    self.control.add_queue(command)
 
         self.writer.close()
         await self.writer.wait_closed()

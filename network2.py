@@ -73,6 +73,10 @@ class Client:
                     print("Cmd: " + str(command))
                     self.control.add_queue(command)
 
+            if command_info is not None:
+                if command_info[0] == "end":
+                    break
+
         self.writer.close()
         await self.writer.wait_closed()
         print("Disconnected from server.")

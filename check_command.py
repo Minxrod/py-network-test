@@ -10,6 +10,7 @@ FILE = "command_info.txt"
 
 REGEXP_NUM = "[0-9]*\\.?[0-9]*"
 REGEXP_COLOR = "^#[0-9A-Fa-f]{3}([0-9A-Fa-f]{3})?$"
+REGEXP_FILE = "^\\w+$"  # just name, no extension
 
 class CommandChecker:
 
@@ -109,9 +110,26 @@ class CommandChecker:
 
     def get_help(self, cmd):
         if cmd not in self.commands:
-            return "Commands: " + str(self.commands)
+            return "cmd [page 1+] for command list"
 
         return cmd + str(self.args[self.commands.index(cmd)])
+
+    def get_cmd(self, index):
+        index = int(index) - 1
+        if index * 5 < len(self.commands):
+            cmds = str(self.commands[index*5:index*5+5])
+            if cmds != "[]":
+                return cmds
+            else:
+                return "Error: invalid page"
+
+        return "Error: invalid page"
+
+    def check_file(self, filename):
+        if re.match(REGEXP_FILE, filename) is not None:
+            return True
+        else:
+            return False
 
 # Some tests...
 #

@@ -4,7 +4,7 @@ import tkinter as tk
 # https://effbot.org/tkinterbook/tkinter-dialog-windows.htm
 class Dialog(tk.Toplevel):
 
-    def __init__(self, parent, title=None):
+    def __init__(self, parent, title=None, ):
 
         tk.Toplevel.__init__(self, parent)
         self.transient(parent)
@@ -51,9 +51,9 @@ class Dialog(tk.Toplevel):
 
         box = tk.Frame(self)
 
-        w = tk.Button(box, text="OK", width=10, command=self.ok, default=tk.ACTIVE)
+        w = tk.Button(box, text=self.BUTTON_OK, width=10, command=self.ok, default=tk.ACTIVE)
         w.pack(side=tk.LEFT, padx=5, pady=5)
-        w = tk.Button(box, text="Cancel", width=10, command=self.cancel)
+        w = tk.Button(box, text=self.BUTTON_CANCEL, width=10, command=self.cancel)
         w.pack(side=tk.LEFT, padx=5, pady=5)
 
         self.bind("<Return>", self.ok)

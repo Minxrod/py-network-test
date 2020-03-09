@@ -22,24 +22,31 @@ async def client_handle(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
         print(command)
 
         if command is None:
-            await request_some(writer, client_location)
-            client_location = len(commands)
-        elif command[0] == "request_all":
-            await request_all(writer)
-            client_location = len(commands)
+            await request_some(writer, client_location, 10)
+            client_location += 10
+            if client_location > len(commands):
+                client_location = len(commands)
         elif command[0] == "submit":
-            await request_some(writer, client_location)
-            accept_submit(command[1])
+            await request_some(writer, client_location, 100)
             # submit after requesting
             # ensure up-to-date client
             # without repeating the submitted command
-            client_location = len(commands)
+            client_location += 100
+            if client_location > len(commands):
+                client_location = len(commands)
+
+            accept_submit(command[1])
+            client_location += 1
+            # this will skip a command if more than 100 were sent
+            # this should never be an issue, hopefully.
         elif command[0] == "end":
             await dummy(None, writer)
             break
         else:
-            await request_some(writer, client_location)
-            client_location = len(commands)
+            await request_some(writer, client_location, 10)
+            client_location += 10
+            if client_location > len(commands):
+                client_location = len(commands)
 
     writer.close()
     print("Client disconnected.")
@@ -58,9 +65,9 @@ async def request_all(writer):
     writer.write(json.dumps(commands).encode(ENCODE))
     await writer.drain()
 
-async def request_some(writer, location):
+async def request_some(writer, location, send_amt):
     if location < len(commands):
-        writer.write(json.dumps(commands[location:]).encode(ENCODE))
+        writer.write(json.dumps(commands[location:location+send_amt]).encode(ENCODE))
         await writer.drain()
     else:
         await dummy(null_command, writer)
@@ -80,4 +87,16 @@ async def connect():
     async with server:
         await server.serve_forever()
 
+def load_from_file():
+
+    p = input("Load from file? [y/n]")
+    if p == "y":
+        f = input("Filename: ")
+        file = open(f, "r")
+
+        return json.loads(file.read())
+    else:
+        return []
+
+commands = load_from_file()
 asyncio.run(connect())
